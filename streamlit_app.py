@@ -50,22 +50,30 @@ def setup_fmfkn_structure():
     })
     
     # --- B. Групи (24 групи) ---
-    # ВИПРАВЛЕННЯ СИНТАКСИЧНОЇ ПОМИЛКИ ТУТ:
     BACHELOR_GROUPS = [f'{i}{group}' for i in range(1, 5) for group in ['М', 'СОМ', 'СОІ', 'СОФА']]
-    MASTER_GROUPS = [f'{i}{group}' for i in range(1, 3) for group in ['ММ', 'МСОМ', 'МСОІ', 'МСОФА']]
+    MASTER_GROUPS = [f'{i}М{group}' for i in range(1, 3) for group in ['М', 'СОМ', 'СОІ', 'СОФА']]
     
     ALL_GROUPS = BACHELOR_GROUPS + MASTER_GROUPS
     
     # --- C. Студенти (Імітація 10 студентів на групу) ---
     STUDENTS = []
+    # Додаємо одного "чистого" студента для тестування реєстрації
+    STUDENTS.append({
+        'ПІБ': 'Іванов О.О.', 
+        'Група': '1СОІ', 
+        'Курс': 1,
+        'Статус': 'Активний',
+        'Оцінка_Алгоритми': 85,
+        'Оцінка_Фізика': 70,
+    })
+    
     for group in ALL_GROUPS:
-        # Безпечне отримання курсу з назви групи
         try:
             course = int(group[0])
         except ValueError:
-            course = 1 # Значення за замовчуванням
+            course = 1 
             
-        for i in range(1, 11):
+        for i in range(1, 10): # Менше, щоб уникнути дублювання
             STUDENTS.append({
                 'ПІБ': f'Студент {group}-{i}', 
                 'Група': group, 
@@ -119,6 +127,7 @@ df_schedule = st.session_state['df_schedule']
 USERS_INFO = st.session_state['USERS_INFO']
 
 # --- Допоміжні дані для оцінок ---
+# Розраховуємо DF_GRADES на основі поточного df_students
 DF_GRADES = df_students.melt(
     id_vars=['ПІБ', 'Група', 'Курс'], 
     value_vars=[col for col in df_students.columns if col.startswith('Оцінка_')],
@@ -149,8 +158,14 @@ def registration_form():
     with st.sidebar.form("registration_form"):
         new_email = st.text_input("Новий Email (університетський)", key="reg_email")
         new_password = st.text_input("Пароль", type="password", key="reg_password")
-        full_name = st.text_input("ПІБ", key="reg_name")
+        full_name = st.text_input("ПІБ (Наприклад: Студент Прізвище)", key="reg_name")
         new_role = st.selectbox("Роль", ['student', 'teacher'], key="reg_role")
+        
+        # Для студента вимагаємо групу, щоб можна було знайти його дані
+        new_group = None
+        if new_role == 'student':
+             new_group = st.selectbox("Група (Обов'язково для студента)", df_students['Група'].unique())
+        
         submitted = st.form_submit_button("Зареєструватися")
         
         if submitted:
@@ -158,9 +173,25 @@ def registration_form():
                 st.sidebar.error("Користувач з таким Email вже існує.")
             elif not full_name or not new_password:
                 st.sidebar.error("Заповніть усі поля.")
+            elif new_role == 'student' and not new_group:
+                st.sidebar.error("Оберіть групу для студента.")
             else:
-                # Зберігаємо нового користувача в імітованій базі
+                # 1. Додаємо нового користувача
                 USERS_INFO[new_email] = {'name': full_name, 'role': new_role, 'password': new_password}
+                
+                # 2. Якщо це студент, додаємо його до mock-бази df_students
+                if new_role == 'student':
+                    new_student_row = pd.DataFrame([{
+                        'ПІБ': full_name, 
+                        'Група': new_group, 
+                        'Курс': int(new_group[0]) if new_group[0].isdigit() else 1,
+                        'Статус': 'Активний',
+                        'Оцінка_Алгоритми': np.nan, 
+                        'Оцінка_Фізика': np.nan,
+                    }])
+                    st.session_state['df_students'] = pd.concat([st.session_state['df_students'], new_student_row], ignore_index=True)
+
+
                 st.session_state['USERS_INFO'] = USERS_INFO
                 st.session_state['logged_in'] = True
                 st.session_state['role'] = new_role
@@ -184,8 +215,10 @@ def logout():
     st.session_state['page'] = "Головна панель"
     st.rerun()
 
+# --- ВІДНОВЛЕНА ФУНКЦІЯ: ВИПРАВЛЕНО ПОШУК (Уникаємо IndexError) ---
 def calculate_gpa(student_name):
     """Імітація розрахунку середнього балу"""
+    # Тепер шукаємо в DF_GRADES, оскільки він має бути оновлений
     grades = DF_GRADES[DF_GRADES['ПІБ'] == student_name]['Оцінка']
     return grades.mean() if not grades.empty else np.nan
 
@@ -231,18 +264,25 @@ def render_dashboard():
         )
         
     elif role == 'student':
-        student_info = df_students[df_students['ПІБ'].str.contains(user_name.split('@')[0].capitalize())].iloc[0]
+        # ВИПРАВЛЕННЯ: Шукаємо студента за ПІБ, яке було встановлено при реєстрації
+        student_info_df = df_students[df_students['ПІБ'] == user_name]
+        
+        if student_info_df.empty:
+            st.error("Помилка: Ваші дані не знайдені в базі студентів. Зверніться до адміністратора.")
+            return
+
+        student_info = student_info_df.iloc[0]
         student_group = student_info['Група']
         
         st.subheader("🎓 Моя успішність (п. 2, 8)")
-        avg_grade = calculate_gpa(student_info['ПІБ'])
+        avg_grade = calculate_gpa(user_name)
         
         col1, col2 = st.columns(2)
         col1.metric("Середній бал (іміт.)", f"{avg_grade:.2f}" if not pd.isna(avg_grade) else "N/A")
         col2.metric("Моя група", student_group)
         
         st.markdown("**Поточні оцінки:**")
-        st.dataframe(DF_GRADES[DF_GRADES['ПІБ'] == student_info['ПІБ']], use_container_width=True)
+        st.dataframe(DF_GRADES[DF_GRADES['ПІБ'] == user_name], use_container_width=True)
 
 # --- 4.2. Модуль "Студенти" (п. 3, 11) ---
 def render_students_module():
