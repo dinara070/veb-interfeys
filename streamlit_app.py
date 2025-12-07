@@ -22,7 +22,7 @@ ROLES = {email: info['role'] for email, info in USERS_INFO.items()}
 @st.cache_data(show_spinner="Завантаження структури факультету...")
 def setup_fmfkn_structure():
     
-    # --- ВИПРАВЛЕННЯ: Визначення констант кафедр на початку ---
+    # --- ВИЗНАЧЕННЯ КОНСТАНТ ---
     KAFEDRA_AMNM = "Алгебри і методики навчання математики"
     KAFEDRA_MI = "Математики та інформатики"
     KAFEDRA_FMFA = "Фізики і методики навчання фізики, астрономії"
@@ -82,7 +82,6 @@ def setup_fmfkn_structure():
     
     # --- C. Студенти (Імітація 10 студентів на групу) ---
     STUDENTS = []
-    # Додаємо одного "чистого" студента для тестування реєстрації
     STUDENTS.append({
         'ПІБ': 'ІВАНОВ О.О.', 
         'Група': '1СОІ', 
@@ -98,7 +97,7 @@ def setup_fmfkn_structure():
         except ValueError:
             course = 1 
             
-        for i in range(1, 10): # Менше, щоб уникнути дублювання
+        for i in range(1, 10): 
             STUDENTS.append({
                 'ПІБ': f'Студент {group}-{i}', 
                 'Група': group, 
@@ -117,7 +116,7 @@ def setup_fmfkn_structure():
     
     for group in ALL_GROUPS:
         used_time_slots = set()
-        for _ in range(3): # 3 пари на тиждень
+        for _ in range(3):
             day = random.choice(DAYS)
             time_slot = random.choice(TIMES)
             teacher = random.choice(df_teachers['ПІБ'].tolist())
@@ -144,7 +143,6 @@ def setup_fmfkn_structure():
     ).dropna()
     DF_GRADES_CALCULATED['Дисципліна'] = DF_GRADES_CALCULATED['Дисципліна'].str.replace('Оцінка_', '')
     
-    # ПОВЕРТАЄМО ВСІ СТРУКТУРИ
     return df_students, df_teachers, df_schedule, DF_GRADES_CALCULATED 
 
 
@@ -508,7 +506,7 @@ if role not in ['admin', 'dean']:
     ]
     if role == 'student':
          # Для студента додаємо тільки релевантні йому модулі
-         visible_pages_filtered.append("Розклад занять (Перегляд)")
+         visible_pages_filtered.append("Розклад занять (Редагування)")
     
     visible_pages = visible_pages_filtered
 
