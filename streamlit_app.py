@@ -9,7 +9,7 @@ from datetime import datetime, time
 # --- Ролі та Паролі (Імітація) ---
 ROLES = {
     'panasenko@fmfkn.edu': 'admin',
-    'voevoda@fmfkn.edu': 'dean', # Додано декана для прикладу
+    'voevoda@fmfkn.edu': 'dean', 
     'prof.ivanov@fmfkn.edu': 'teacher',
     'student.ivanov@fmfkn.edu': 'student',
 }
@@ -159,7 +159,9 @@ def registration_form():
         new_email = st.text_input("Новий Email (університетський)", key="reg_email")
         new_password = st.text_input("Пароль", type="password", key="reg_password")
         full_name = st.text_input("ПІБ (Наприклад: Студент Прізвище)", key="reg_name")
-        new_role = st.selectbox("Роль", ['student', 'teacher'], key="reg_role")
+        
+        # ДОДАНО РОЛЬ АДМІНІСТРАТОРА
+        new_role = st.selectbox("Роль", ['student', 'teacher', 'admin'], key="reg_role")
         
         # Для студента вимагаємо групу, щоб можна було знайти його дані
         new_group = None
@@ -169,6 +171,9 @@ def registration_form():
         submitted = st.form_submit_button("Зареєструватися")
         
         if submitted:
+            if new_role == 'admin':
+                st.warning("⚠️ Увага: Реєстрація нового адміністратора дозволена лише для імітації тестування.")
+                
             if new_email in USERS_INFO:
                 st.sidebar.error("Користувач з таким Email вже існує.")
             elif not full_name or not new_password:
@@ -218,7 +223,6 @@ def logout():
 # --- ВІДНОВЛЕНА ФУНКЦІЯ: ВИПРАВЛЕНО ПОШУК (Уникаємо IndexError) ---
 def calculate_gpa(student_name):
     """Імітація розрахунку середнього балу"""
-    # Тепер шукаємо в DF_GRADES, оскільки він має бути оновлений
     grades = DF_GRADES[DF_GRADES['ПІБ'] == student_name]['Оцінка']
     return grades.mean() if not grades.empty else np.nan
 
