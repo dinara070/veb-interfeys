@@ -160,13 +160,15 @@ def registration_form():
         new_password = st.text_input("Пароль", type="password", key="reg_password")
         full_name = st.text_input("ПІБ (Наприклад: Студент Прізвище)", key="reg_name")
         
-        # ДОДАНО РОЛЬ АДМІНІСТРАТОРА
-        new_role = st.selectbox("Роль", ['student', 'teacher', 'admin'], key="reg_role")
+        # Використовуємо key для збереження обраної ролі, щоб можна було її зчитати
+        new_role = st.selectbox("Роль", ['student', 'teacher', 'admin'], key="reg_role_key")
         
-        # Для студента вимагаємо групу, щоб можна було знайти його дані
+        # --- ДИНАМІЧНА ГРАФА "ГРУПА" ---
         new_group = None
         if new_role == 'student':
+             # Якщо обрано "student", показуємо поле "Група"
              new_group = st.selectbox("Група (Обов'язково для студента)", df_students['Група'].unique())
+        # -------------------------------
         
         submitted = st.form_submit_button("Зареєструватися")
         
@@ -179,13 +181,14 @@ def registration_form():
             elif not full_name or not new_password:
                 st.sidebar.error("Заповніть усі поля.")
             elif new_role == 'student' and not new_group:
+                # Ця перевірка спрацює, якщо поле "Група" було відображено, але не обрано
                 st.sidebar.error("Оберіть групу для студента.")
             else:
                 # 1. Додаємо нового користувача
                 USERS_INFO[new_email] = {'name': full_name, 'role': new_role, 'password': new_password}
                 
                 # 2. Якщо це студент, додаємо його до mock-бази df_students
-                if new_role == 'student':
+                if new_role == 'student' and new_group:
                     new_student_row = pd.DataFrame([{
                         'ПІБ': full_name, 
                         'Група': new_group, 
@@ -220,7 +223,7 @@ def logout():
     st.session_state['page'] = "Головна панель"
     st.rerun()
 
-# --- ВІДНОВЛЕНА ФУНКЦІЯ: ВИПРАВЛЕНО ПОШУК (Уникаємо IndexError) ---
+# --- ВІДНОВЛЕНА ФУНКЦІЯ ---
 def calculate_gpa(student_name):
     """Імітація розрахунку середнього балу"""
     grades = DF_GRADES[DF_GRADES['ПІБ'] == student_name]['Оцінка']
