@@ -6,17 +6,15 @@ from datetime import datetime, time
 
 # --- 1. ІНІЦІАЛІЗАЦІЯ СКЛАДНИХ ДАНИХ (ІМІТАЦІЯ БАЗИ ДАНИХ) ---
 
-# --- Ролі та Паролі (Імітація) ---
 # Використовуємо реальні ПІБ для ключових ролей
 USERS_INFO = {
     'panasenko@fmfkn.edu': {'name': 'ПАНАСЕНКО ОЛЕКСІЙ БОРИСОВИЧ', 'role': 'admin', 'password': 'admin'},
     'voevoda@fmfkn.edu': {'name': 'ВОЄВОДА АЛІНА ЛЕОНІДІВНА', 'role': 'dean', 'password': 'dean'},
     'konoshevskyi@fmfkn.edu': {'name': 'КОНОШЕВСЬКИЙ ОЛЕГ ЛЕОНІДОВИЧ', 'role': 'dean', 'password': 'dean'}, 
-    'kovtonyukm@fmfkn.edu': {'name': 'КОВТОНЮК МАР\'ЯНА МИХАЙЛІВНА', 'role': 'teacher', 'password': 'teacher'}, 
+    'kovtonyukm@fmfkn.edu': {'name': "КОВТОНЮК МАР'ЯНА МИХАЙЛІВНА", 'role': 'teacher', 'password': 'teacher'}, 
     'teacher@fmfkn.edu': {'name': 'МАТЯШ ОЛЬГА ІВАНІВНА', 'role': 'teacher', 'password': 'teacher'},
     'student@fmfkn.edu': {'name': 'ІВАНОВ О.О.', 'role': 'student', 'password': 'student'},
 }
-# Ролі тут ініціалізуються з USER_INFO
 ROLES = {email: info['role'] for email, info in USERS_INFO.items()}
 
 
@@ -24,7 +22,7 @@ ROLES = {email: info['role'] for email, info in USERS_INFO.items()}
 @st.cache_data(show_spinner="Завантаження структури факультету...")
 def setup_fmfkn_structure():
     
-    # --- A. Реальні Викладачі та Кафедри (Згідно з наданим списком) ---
+    # --- A. Реальні Викладачі та Кафедри ---
     TEACHER_DATA = []
     
     # Кафедра Алгебри і методики навчання математики (10 осіб)
@@ -99,7 +97,7 @@ def setup_fmfkn_structure():
         except ValueError:
             course = 1 
             
-        for i in range(1, 10): # Менше, щоб уникнути дублювання
+        for i in range(1, 10): 
             STUDENTS.append({
                 'ПІБ': f'Студент {group}-{i}', 
                 'Група': group, 
@@ -121,7 +119,6 @@ def setup_fmfkn_structure():
         for _ in range(3): # 3 пари на тиждень
             day = random.choice(DAYS)
             time_slot = random.choice(TIMES)
-            # Вибираємо випадкового викладача з фактичного списку
             teacher = random.choice(df_teachers['ПІБ'].tolist())
             discipline = random.choice(DISCIPLINES)
             
@@ -152,6 +149,7 @@ def setup_fmfkn_structure():
 
 # Ініціалізація даних у st.session_state, якщо вони ще не завантажені
 if 'df_students' not in st.session_state or 'df_teachers' not in st.session_state or 'df_schedule' not in st.session_state or 'DF_GRADES' not in st.session_state or 'DOCS' not in st.session_state:
+    # Отримуємо всі чотири об'єкти
     df_students_initial, df_teachers_initial, df_schedule_initial, DF_GRADES_initial = setup_fmfkn_structure()
     st.session_state['df_students'] = df_students_initial
     st.session_state['df_teachers'] = df_teachers_initial
@@ -191,23 +189,19 @@ def registration_form():
         new_password = st.text_input("Пароль", type="password", key="reg_password")
         full_name = st.text_input("ПІБ (Наприклад: Студент Прізвище)", key="reg_name")
         
-        # Використовуємо key для збереження обраної ролі
         new_role = st.selectbox("Роль", ['student', 'teacher', 'admin', 'dean'], key="reg_role_key")
         
         # --- ДИНАМІЧНА ГРАФА "ГРУПА" ---
         new_group = None
         if new_role == 'student':
-             # Якщо обрано "student", показуємо поле "Група"
              new_group = st.selectbox("Група (Обов'язково для студента)", df_students['Група'].unique())
         # -------------------------------
         
         submitted = st.form_submit_button("Зареєструватися")
         
         if submitted:
-            if new_role == 'admin':
-                st.warning("⚠️ Увага: Реєстрація нового адміністратора дозволена лише для імітації тестування.")
-            if new_role == 'dean':
-                st.warning("⚠️ Увага: Реєстрація нового деканату дозволена лише для імітації тестування.")
+            if new_role in ['admin', 'dean']:
+                st.warning(f"⚠️ Увага: Реєстрація нового {new_role.capitalize()} дозволена лише для імітації тестування.")
                 
             if new_email in USERS_INFO:
                 st.sidebar.error("Користувач з таким Email вже існує.")
@@ -229,15 +223,19 @@ def registration_form():
                         'Оцінка_Алгоритми': np.nan, 
                         'Оцінка_Фізика': np.nan,
                     }])
-                    # Оновлюємо обидві структури (студентів і оцінок), щоб уникнути NameError
+                    # Оновлюємо DF_STUDENTS
                     st.session_state['df_students'] = pd.concat([st.session_state['df_students'], new_student_row], ignore_index=True)
-                    st.session_state['DF_GRADES'] = st.session_state['df_students'].melt(
+                    
+                    # Оновлюємо DF_GRADES (щоб функція calculate_gpa бачила нового студента)
+                    new_grades = st.session_state['df_students'].melt(
                         id_vars=['ПІБ', 'Група', 'Курс'], 
                         value_vars=[col for col in st.session_state['df_students'].columns if col.startswith('Оцінка_')],
                         var_name='Дисципліна', 
                         value_name='Оцінка'
                     ).dropna()
-                    st.session_state['DF_GRADES']['Дисципліна'] = st.session_state['DF_GRADES']['Дисципліна'].str.replace('Оцінка_', '')
+                    new_grades['Дисципліна'] = new_grades['Дисципліна'].str.replace('Оцінка_', '')
+                    st.session_state['DF_GRADES'] = new_grades
+
 
                 st.session_state['USERS_INFO'] = USERS_INFO
                 st.session_state['logged_in'] = True
@@ -310,7 +308,6 @@ def render_dashboard():
         )
         
     elif role == 'student':
-        # ВИПРАВЛЕННЯ: Шукаємо студента за ПІБ, яке було встановлено при реєстрації
         student_info_df = df_students[df_students['ПІБ'] == user_name]
         
         if student_info_df.empty:
@@ -491,7 +488,7 @@ def render_doc_module():
 
 PAGES = {
     "Головна панель": render_dashboard,
-    "Керування даними (Адмін)": render_admin_data_management, # Новий модуль
+    "Керування даними (Адмін)": render_admin_data_management, 
     "Студенти та Групи": render_students_module,
     "Викладачі та Кафедри": render_teachers_module,
     "Розклад занять (Редагування)": render_schedule_module,
@@ -501,7 +498,23 @@ PAGES = {
 if 'page' not in st.session_state:
     st.session_state['page'] = "Головна панель"
 
-selection = st.sidebar.radio("Навігація", list(PAGES.keys()), index=list(PAGES.keys()).index(st.session_state['page']))
+# Видаляємо адміністративні сторінки з навігації, якщо користувач не є адміністратором/деканом
+visible_pages = list(PAGES.keys())
+if role not in ['admin', 'dean']:
+    # Ховаємо "Керування даними (Адмін)"
+    if "Керування даними (Адмін)" in visible_pages:
+        visible_pages.remove("Керування даними (Адмін)")
+    # Ховаємо "Студенти та Групи" (бо доступ обмежено всередині)
+    if "Студенти та Групи" in visible_pages:
+        visible_pages.remove("Студенти та Групи")
+    # Ховаємо "Розклад занять (Редагування)" (якщо роль не дозволяє, краще не відображати)
+    if "Розклад занять (Редагування)" in visible_pages:
+        visible_pages.remove("Розклад занять (Редагування)")
+    # Для викладачів і студентів показуємо тільки релевантне
+    
+    
+selection = st.sidebar.radio("Навігація", visible_pages, index=visible_pages.index(st.session_state['page']) if st.session_state['page'] in visible_pages else 0)
+
 
 if selection != st.session_state['page']:
     st.session_state['page'] = selection
