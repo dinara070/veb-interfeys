@@ -22,11 +22,14 @@ ROLES = {email: info['role'] for email, info in USERS_INFO.items()}
 @st.cache_data(show_spinner="Завантаження структури факультету...")
 def setup_fmfkn_structure():
     
-    # --- A. Реальні Викладачі та Кафедри ---
+    # --- ВИПРАВЛЕННЯ: Визначення констант кафедр на початку ---
+    KAFEDRA_AMNM = "Алгебри і методики навчання математики"
+    KAFEDRA_MI = "Математики та інформатики"
+    KAFEDRA_FMFA = "Фізики і методики навчання фізики, астрономії"
+    
     TEACHER_DATA = []
     
     # Кафедра Алгебри і методики навчання математики (10 осіб)
-    KAFEDRA_AMNM = "Алгебри і методики навчання математики"
     TEACHER_DATA.extend([
         {'ПІБ': 'КОНОШЕВСЬКИЙ ОЛЕГ ЛЕОНІДОВИЧ', 'Кафедра': KAFEDRA_AMNM, 'Роль': 'dean', 'Посада': 'Завідувач кафедри, доцент'},
         {'ПІБ': 'МАТЯШ ОЛЬГА ІВАНІВНА', 'Кафедра': KAFEDRA_AMNM, 'Роль': 'teacher', 'Посада': 'Професор'},
@@ -41,7 +44,6 @@ def setup_fmfkn_structure():
     ])
 
     # Кафедра Математики та інформатики (12 осіб)
-    KAFEDRA_MI = "Математики та інформатики"
     TEACHER_DATA.extend([
         {'ПІБ': "КОВТОНЮК МАР'ЯНА МИХАЙЛІВНА", 'Кафедра': KAFEDRA_MI, 'Роль': 'teacher', 'Посада': 'Завідувач кафедри, професор'},
         {'ПІБ': 'БАК СЕРГІЙ МИКОЛАЙОВИЧ', 'Кафедра': KAFEDRA_MI, 'Роль': 'teacher', 'Посада': 'Професор, заступник декана з наукової роботи'},
@@ -58,7 +60,6 @@ def setup_fmfkn_structure():
     ])
 
     # Кафедра Фізики і методики навчання фізики та астрономії (10 осіб)
-    KAFEDRA_FMFA = "Фізики і методики навчання фізики, астрономії"
     TEACHER_DATA.extend([
         {'ПІБ': 'СІЛЬВЕЙСТР АНАТОЛІЙ МИКОЛАЙОВИЧ', 'Кафедра': KAFEDRA_FMFA, 'Роль': 'teacher', 'Посада': 'Завідувач кафедри, професор'},
         {'ПІБ': 'ЗАБОЛОТНИЙ ВОЛОДИМИР ФЕДОРОВИЧ', 'Кафедра': KAFEDRA_FMFA, 'Роль': 'teacher', 'Посада': 'Професор'},
@@ -97,7 +98,7 @@ def setup_fmfkn_structure():
         except ValueError:
             course = 1 
             
-        for i in range(1, 10): 
+        for i in range(1, 10): # Менше, щоб уникнути дублювання
             STUDENTS.append({
                 'ПІБ': f'Студент {group}-{i}', 
                 'Група': group, 
@@ -434,7 +435,6 @@ def render_admin_data_management():
         st.subheader("Редагування Бази Студентів")
         st.warning("Редагування відбувається безпосередньо в таблиці. Зміни зберігаються лише на час поточної сесії.")
         
-        # Використовуємо st.data_editor для можливості редагування Pandas DataFrame
         edited_students_df = st.data_editor(st.session_state['df_students'], use_container_width=True, key="admin_edit_students")
         
         if st.button("Зберегти зміни у студентах (тимчасово)"):
@@ -446,7 +446,6 @@ def render_admin_data_management():
         st.subheader("Редагування Списку Викладачів")
         st.warning("Ви можете змінювати ПІБ, Кафедру та Посаду викладачів.")
 
-        # Редагування DataFrame Викладачів
         edited_teachers_df = st.data_editor(st.session_state['df_teachers'], use_container_width=True, key="admin_edit_teachers")
 
         if st.button("Зберегти зміни у викладачах (тимчасово)"):
@@ -498,22 +497,29 @@ PAGES = {
 if 'page' not in st.session_state:
     st.session_state['page'] = "Головна панель"
 
-# Видаляємо адміністративні сторінки з навігації, якщо користувач не є адміністратором/деканом
+# Навігація для користувачів з обмеженим доступом
 visible_pages = list(PAGES.keys())
 if role not in ['admin', 'dean']:
-    # Ховаємо "Керування даними (Адмін)"
-    if "Керування даними (Адмін)" in visible_pages:
-        visible_pages.remove("Керування даними (Адмін)")
-    # Ховаємо "Студенти та Групи" (бо доступ обмежено всередині)
-    if "Студенти та Групи" in visible_pages:
-        visible_pages.remove("Студенти та Групи")
-    # Ховаємо "Розклад занять (Редагування)" (якщо роль не дозволяє, краще не відображати)
-    if "Розклад занять (Редагування)" in visible_pages:
-        visible_pages.remove("Розклад занять (Редагування)")
-    # Для викладачів і студентів показуємо тільки релевантне
+    # Ховаємо адміністративні модулі, якщо роль не admin/dean
+    visible_pages_filtered = [
+        "Головна панель", 
+        "Викладачі та Кафедри",
+        "Документообіг (Перегляд)"
+    ]
+    if role == 'student':
+         # Для студента додаємо тільки релевантні йому модулі
+         visible_pages_filtered.append("Розклад занять (Перегляд)")
     
+    visible_pages = visible_pages_filtered
+
+
+# Встановлення індексу для коректного відображення поточної сторінки
+if st.session_state['page'] not in visible_pages:
+    current_index = 0 # Якщо поточна сторінка не доступна, переходимо на Головну панель
+else:
+    current_index = visible_pages.index(st.session_state['page'])
     
-selection = st.sidebar.radio("Навігація", visible_pages, index=visible_pages.index(st.session_state['page']) if st.session_state['page'] in visible_pages else 0)
+selection = st.sidebar.radio("Навігація", visible_pages, index=current_index)
 
 
 if selection != st.session_state['page']:
