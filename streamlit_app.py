@@ -50,14 +50,21 @@ def setup_fmfkn_structure():
     })
     
     # --- B. Групи (24 групи) ---
-    BACHELOR_GROUPS = [f'{i}М', f'{i}СОМ', f'{i}СОІ', f'{i}СОФА' for i in range(1, 5)]
-    MASTER_GROUPS = [f'{i}ММ', f'{i}МСОМ', f'{i}МСОІ', f'{i}МСОФА' for i in range(1, 3)]
+    # ВИПРАВЛЕННЯ СИНТАКСИЧНОЇ ПОМИЛКИ ТУТ:
+    BACHELOR_GROUPS = [f'{i}{group}' for i in range(1, 5) for group in ['М', 'СОМ', 'СОІ', 'СОФА']]
+    MASTER_GROUPS = [f'{i}{group}' for i in range(1, 3) for group in ['ММ', 'МСОМ', 'МСОІ', 'МСОФА']]
+    
     ALL_GROUPS = BACHELOR_GROUPS + MASTER_GROUPS
     
     # --- C. Студенти (Імітація 10 студентів на групу) ---
     STUDENTS = []
     for group in ALL_GROUPS:
-        course = int(group[0])
+        # Безпечне отримання курсу з назви групи
+        try:
+            course = int(group[0])
+        except ValueError:
+            course = 1 # Значення за замовчуванням
+            
         for i in range(1, 11):
             STUDENTS.append({
                 'ПІБ': f'Студент {group}-{i}', 
@@ -111,12 +118,15 @@ df_teachers = st.session_state['df_teachers']
 df_schedule = st.session_state['df_schedule']
 USERS_INFO = st.session_state['USERS_INFO']
 
-# --- Функції обробки даних (Спрощена імітація Backend) ---
+# --- Допоміжні дані для оцінок ---
+DF_GRADES = df_students.melt(
+    id_vars=['ПІБ', 'Група', 'Курс'], 
+    value_vars=[col for col in df_students.columns if col.startswith('Оцінка_')],
+    var_name='Дисципліна', 
+    value_name='Оцінка'
+).dropna()
+DF_GRADES['Дисципліна'] = DF_GRADES['Дисципліна'].str.replace('Оцінка_', '')
 
-def calculate_gpa(student_name):
-    """Імітація розрахунку середнього балу"""
-    grades = DF_GRADES[DF_GRADES['ПІБ'] == student_name]['Оцінка']
-    return grades.mean() if not grades.empty else np.nan
 
 # --- 3. АВТЕНТИФІКАЦІЯ ТА РЕЄСТРАЦІЯ (п. 1) ---
 
@@ -174,6 +184,11 @@ def logout():
     st.session_state['page'] = "Головна панель"
     st.rerun()
 
+def calculate_gpa(student_name):
+    """Імітація розрахунку середнього балу"""
+    grades = DF_GRADES[DF_GRADES['ПІБ'] == student_name]['Оцінка']
+    return grades.mean() if not grades.empty else np.nan
+
 # --- 4. Рендеринг Компонентів ---
 
 role = st.session_state['role']
@@ -206,28 +221,28 @@ def render_dashboard():
         
         st.markdown(f"**Мої групи:** {', '.join(teacher_groups) if teacher_groups.size > 0 else 'Не призначено'}")
         
-        # Імітація електронного журналу (п. 8)
         st.subheader("Електронний журнал (Імітація)")
+        st.caption("Оцінки можна редагувати безпосередньо в таблиці (зміни тимчасові).")
+        # Імітація електронного журналу (п. 8)
         editable_grades = st.data_editor(
             DF_GRADES.sort_values(by=['Група', 'ПІБ']), 
             use_container_width=True, 
             key="teacher_grades_edit"
         )
-        st.caption("Оцінки можна редагувати безпосередньо в таблиці (зміни тимчасові).")
         
     elif role == 'student':
-        student_info = df_students[df_students['ПІБ'] == user_name].iloc[0]
+        student_info = df_students[df_students['ПІБ'].str.contains(user_name.split('@')[0].capitalize())].iloc[0]
         student_group = student_info['Група']
         
         st.subheader("🎓 Моя успішність (п. 2, 8)")
-        avg_grade = calculate_gpa(user_name)
+        avg_grade = calculate_gpa(student_info['ПІБ'])
         
         col1, col2 = st.columns(2)
         col1.metric("Середній бал (іміт.)", f"{avg_grade:.2f}" if not pd.isna(avg_grade) else "N/A")
         col2.metric("Моя група", student_group)
         
         st.markdown("**Поточні оцінки:**")
-        st.dataframe(DF_GRADES[DF_GRADES['ПІБ'] == user_name], use_container_width=True)
+        st.dataframe(DF_GRADES[DF_GRADES['ПІБ'] == student_info['ПІБ']], use_container_width=True)
 
 # --- 4.2. Модуль "Студенти" (п. 3, 11) ---
 def render_students_module():
@@ -255,7 +270,6 @@ def render_students_module():
 def render_schedule_module():
     st.header("Модуль 'Розклад'")
     
-    # Використовуємо df_schedule із session_state
     current_schedule = st.session_state['df_schedule'] 
     
     st.subheader("Перегляд розкладу")
@@ -274,7 +288,7 @@ def render_schedule_module():
     if role in ['admin', 'dean']:
         st.subheader("🛠️ Редагування розкладу")
         with st.expander("Додати нову пару"):
-            render_schedule_edit_form() # Викликаємо форму редагування
+            render_schedule_edit_form() 
 
 # --- 4.4. Форма Редагування Розкладу (Імітація Backend/CRUD) ---
 def render_schedule_edit_form():
@@ -284,7 +298,7 @@ def render_schedule_edit_form():
         
         col_g, col_d = st.columns(2)
         group = col_g.selectbox("Група", st.session_state['df_students']['Група'].unique())
-        discipline = col_d.selectbox("Дисципліна", df_schedule['Дисципліна'].unique())
+        discipline = col_d.selectbox("Дисципліна", st.session_state['df_schedule']['Дисципліна'].unique())
         
         col_t, col_a = st.columns(2)
         teacher = col_t.selectbox("Викладач", df_teachers['ПІБ'].unique())
@@ -304,10 +318,8 @@ def render_schedule_edit_form():
             conflict_group = current_schedule_df[(current_schedule_df['Група'] == group) & (current_schedule_df['День'] == day) & (current_schedule_df['Час'] == time_str)]
             conflict_teacher = current_schedule_df[(current_schedule_df['Викладач'] == teacher) & (current_schedule_df['День'] == day) & (current_schedule_df['Час'] == time_str)]
             
-            if not conflict_group.empty:
-                st.warning(f"⚠️ Конфлікт! Група {group} вже зайнята в {day} о {time_str}.")
-            elif not conflict_teacher.empty:
-                 st.warning(f"⚠️ Конфлікт! Викладач {teacher} вже зайнятий в {day} о {time_str}.")
+            if not conflict_group.empty or not conflict_teacher.empty:
+                st.warning("⚠️ Конфлікт розкладу! Група або викладач вже зайняті в цей час.")
             else:
                 new_row = pd.DataFrame([{
                     'Група': group, 
@@ -318,7 +330,6 @@ def render_schedule_edit_form():
                     'Аудиторія': classroom
                 }])
                 
-                # Оновлення через session_state
                 st.session_state['df_schedule'] = pd.concat([current_schedule_df, new_row], ignore_index=True)
                 st.success("✅ Нову пару успішно додано до розкладу!")
                 st.toast("Розклад оновлено!")
@@ -351,7 +362,6 @@ PAGES = {
     "Документообіг (Імітація)": render_doc_module,
 }
 
-# Використовуємо session_state для керування активною сторінкою
 if 'page' not in st.session_state:
     st.session_state['page'] = "Головна панель"
 
@@ -359,7 +369,7 @@ selection = st.sidebar.radio("Навігація", list(PAGES.keys()), index=lis
 
 if selection != st.session_state['page']:
     st.session_state['page'] = selection
-    st.rerun() # Перезапускаємо для швидкого відображення нової сторінки
+    st.rerun() 
     
 # Рендеринг обраної сторінки
 PAGES[st.session_state['page']]()
