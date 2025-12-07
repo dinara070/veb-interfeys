@@ -11,7 +11,7 @@ from datetime import datetime, time
 USERS_INFO = {
     'panasenko@fmfkn.edu': {'name': 'ПАНАСЕНКО ОЛЕКСІЙ БОРИСОВИЧ', 'role': 'admin', 'password': 'admin'},
     'voevoda@fmfkn.edu': {'name': 'ВОЄВОДА АЛІНА ЛЕОНІДІВНА', 'role': 'dean', 'password': 'dean'},
-    'konoshevskyi@fmfkn.edu': {'name': 'КОНОШЕВСЬКИЙ ОЛЕГ ЛЕОНІДОВИЧ', 'role': 'dean', 'password': 'dean'}, # Завідувач кафедри як декан/адмін
+    'konoshevskyi@fmfkn.edu': {'name': 'КОНОШЕВСЬКИЙ ОЛЕГ ЛЕОНІДОВИЧ', 'role': 'dean', 'password': 'dean'}, 
     'kovtonyukm@fmfkn.edu': {'name': 'КОВТОНЮК МАР\'ЯНА МИХАЙЛІВНА', 'role': 'teacher', 'password': 'teacher'}, 
     'teacher@fmfkn.edu': {'name': 'МАТЯШ ОЛЬГА ІВАНІВНА', 'role': 'teacher', 'password': 'teacher'},
     'student@fmfkn.edu': {'name': 'ІВАНОВ О.О.', 'role': 'student', 'password': 'student'},
@@ -37,7 +37,7 @@ def setup_fmfkn_structure():
         {'ПІБ': 'ВОТЯКОВА ЛЕСЯ АНДРІЇВНА', 'Кафедра': KAFEDRA_AMNM, 'Роль': 'teacher', 'Посада': 'Доцент'},
         {'ПІБ': 'КАЛАШНІКОВ ІГОР В’ЯЧЕСЛАВОВИЧ', 'Кафедра': KAFEDRA_AMNM, 'Роль': 'teacher', 'Посада': 'Доцент'},
         {'ПІБ': 'НАКОНЕЧНА ЛЮДМИЛА ЙОСИПІВНА', 'Кафедра': KAFEDRA_AMNM, 'Роль': 'teacher', 'Посада': 'Доцент'},
-        {'ПІБ': 'ПАНАСЕНКО ОЛЕКСІЙ БОРИСОВИЧ', 'Кафедра': KAFEDRA_AMNM, 'Роль': 'admin', 'Посада': 'Заступник декана, доцент'}, # АДМІНІСТРАТОР
+        {'ПІБ': 'ПАНАСЕНКО ОЛЕКСІЙ БОРИСОВИЧ', 'Кафедра': KAFEDRA_AMNM, 'Роль': 'admin', 'Посада': 'Заступник декана, доцент'}, 
         {'ПІБ': 'ТЮТЮННИК ДІАНА ОЛЕГІВНА', 'Кафедра': KAFEDRA_AMNM, 'Роль': 'teacher', 'Посада': 'Асистент'},
         {'ПІБ': 'КОМАРОВА КАРИНА ВАДИМІВНА', 'Кафедра': KAFEDRA_AMNM, 'Роль': 'teacher', 'Посада': 'Старший лаборант'},
     ])
@@ -52,7 +52,7 @@ def setup_fmfkn_structure():
         {'ПІБ': 'КОВТОНЮК ГАЛИНА МИКОЛАЇВНА', 'Кафедра': KAFEDRA_MI, 'Роль': 'teacher', 'Посада': 'Доцент'},
         {'ПІБ': 'КОСОВЕЦЬ ОЛЕНА ПАВЛІВНА', 'Кафедра': KAFEDRA_MI, 'Роль': 'teacher', 'Посада': 'Доцент'},
         {'ПІБ': 'КРУПСЬКИЙ ЯРОСЛАВ ВОЛОДИМИРОВИЧ', 'Кафедра': KAFEDRA_MI, 'Роль': 'teacher', 'Посада': 'Доцент'},
-        {'ПІБ': 'СОЯ ОЛЕНА МИКОЛАЇВНА', 'Кафедра': KAFEDРА_MI, 'Роль': 'teacher', 'Посада': 'Доцент'},
+        {'ПІБ': 'СОЯ ОЛЕНА МИКОЛАЇВНА', 'Кафедра': KAFEDRA_MI, 'Роль': 'teacher', 'Посада': 'Доцент'},
         {'ПІБ': 'ТЮТЮН ЛЮБОВ АНДРІЇВНА', 'Кафедра': KAFEDRA_MI, 'Роль': 'teacher', 'Посада': 'Доцент'},
         {'ПІБ': 'ЛЕОНОВА ІВАННА МИКОЛАЇВНА', 'Кафедра': KAFEDRA_MI, 'Роль': 'teacher', 'Посада': 'Асистент'},
         {'ПІБ': 'ПОЛІЩУК ВІТАЛІЙ ОЛЕГОВИЧ', 'Кафедра': KAFEDRA_MI, 'Роль': 'teacher', 'Посада': 'Завідувач обчислювальними лабораторіями'},
@@ -99,7 +99,7 @@ def setup_fmfkn_structure():
         except ValueError:
             course = 1 
             
-        for i in range(1, 10): 
+        for i in range(1, 10): # Менше, щоб уникнути дублювання
             STUDENTS.append({
                 'ПІБ': f'Студент {group}-{i}', 
                 'Група': group, 
@@ -137,14 +137,26 @@ def setup_fmfkn_structure():
                 })
     df_schedule = pd.DataFrame(schedule_data)
     
-    return df_students, df_teachers, df_schedule
+    # --- E. Обчислення DF_GRADES для повернення ---
+    DF_GRADES_CALCULATED = df_students.melt(
+        id_vars=['ПІБ', 'Група', 'Курс'], 
+        value_vars=[col for col in df_students.columns if col.startswith('Оцінка_')],
+        var_name='Дисципліна', 
+        value_name='Оцінка'
+    ).dropna()
+    DF_GRADES_CALCULATED['Дисципліна'] = DF_GRADES_CALCULATED['Дисципліна'].str.replace('Оцінка_', '')
+    
+    # ПОВЕРТАЄМО ВСІ СТРУКТУРИ
+    return df_students, df_teachers, df_schedule, DF_GRADES_CALCULATED 
+
 
 # Ініціалізація даних у st.session_state, якщо вони ще не завантажені
-if 'df_students' not in st.session_state or 'df_teachers' not in st.session_state or 'df_schedule' not in st.session_state:
-    df_students_initial, df_teachers_initial, df_schedule_initial = setup_fmfkn_structure()
+if 'df_students' not in st.session_state or 'df_teachers' not in st.session_state or 'df_schedule' not in st.session_state or 'DF_GRADES' not in st.session_state:
+    df_students_initial, df_teachers_initial, df_schedule_initial, DF_GRADES_initial = setup_fmfkn_structure()
     st.session_state['df_students'] = df_students_initial
     st.session_state['df_teachers'] = df_teachers_initial
     st.session_state['df_schedule'] = df_schedule_initial
+    st.session_state['DF_GRADES'] = DF_GRADES_initial
     st.session_state['USERS_INFO'] = USERS_INFO
     
 # Отримання даних з session_state
@@ -152,17 +164,7 @@ df_students = st.session_state['df_students']
 df_teachers = st.session_state['df_teachers']
 df_schedule = st.session_state['df_schedule']
 USERS_INFO = st.session_state['USERS_INFO']
-
-# --- Допоміжні дані для оцінок ---
-# Розраховуємо DF_GRADES на основі поточного df_students
-DF_GRADES = df_students.melt(
-    id_vars=['ПІБ', 'Група', 'Курс'], 
-    value_vars=[col for col in df_students.columns if col.startswith('Оцінка_')],
-    var_name='Дисципліна', 
-    value_name='Оцінка'
-).dropna()
-DF_GRADES['Дисципліна'] = DF_GRADES['Дисципліна'].str.replace('Оцінка_', '')
-
+DF_GRADES = st.session_state['DF_GRADES'] # ВИПРАВЛЕНО NameError
 
 # --- 3. АВТЕНТИФІКАЦІЯ ТА РЕЄСТРАЦІЯ (п. 1) ---
 
@@ -187,8 +189,7 @@ def registration_form():
         new_password = st.text_input("Пароль", type="password", key="reg_password")
         full_name = st.text_input("ПІБ (Наприклад: Студент Прізвище)", key="reg_name")
         
-        # Використовуємо key для збереження обраної ролі, щоб можна було її зчитати
-        # ДОДАНО РОЛЬ DEAN (Деканат) для більшої гнучкості тестування
+        # Використовуємо key для збереження обраної ролі
         new_role = st.selectbox("Роль", ['student', 'teacher', 'admin', 'dean'], key="reg_role_key")
         
         # --- ДИНАМІЧНА ГРАФА "ГРУПА" ---
@@ -211,7 +212,6 @@ def registration_form():
             elif not full_name or not new_password:
                 st.sidebar.error("Заповніть усі поля.")
             elif new_role == 'student' and not new_group:
-                # Ця перевірка спрацює, якщо поле "Група" було відображено, але не обрано
                 st.sidebar.error("Оберіть групу для студента.")
             else:
                 # 1. Додаємо нового користувача
@@ -227,8 +227,15 @@ def registration_form():
                         'Оцінка_Алгоритми': np.nan, 
                         'Оцінка_Фізика': np.nan,
                     }])
+                    # Оновлюємо обидві структури (студентів і оцінок), щоб уникнути NameError
                     st.session_state['df_students'] = pd.concat([st.session_state['df_students'], new_student_row], ignore_index=True)
-
+                    st.session_state['DF_GRADES'] = st.session_state['df_students'].melt(
+                        id_vars=['ПІБ', 'Група', 'Курс'], 
+                        value_vars=[col for col in st.session_state['df_students'].columns if col.startswith('Оцінка_')],
+                        var_name='Дисципліна', 
+                        value_name='Оцінка'
+                    ).dropna()
+                    st.session_state['DF_GRADES']['Дисципліна'] = st.session_state['DF_GRADES']['Дисципліна'].str.replace('Оцінка_', '')
 
                 st.session_state['USERS_INFO'] = USERS_INFO
                 st.session_state['logged_in'] = True
@@ -425,7 +432,7 @@ def render_doc_module():
 def render_teachers_module():
     st.header("Модуль 'Викладачі' (п. 5)")
     st.markdown("---")
-    st.subheader("Персональний склад та Навантаження")
+    st.subheader("Персональний склад та Посади")
     
     # Використовуємо df_teachers з деталями (посада)
     st.dataframe(st.session_state['df_teachers'], use_container_width=True)
