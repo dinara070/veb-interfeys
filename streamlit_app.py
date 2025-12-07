@@ -151,20 +151,22 @@ def setup_fmfkn_structure():
 
 
 # Ініціалізація даних у st.session_state, якщо вони ще не завантажені
-if 'df_students' not in st.session_state or 'df_teachers' not in st.session_state or 'df_schedule' not in st.session_state or 'DF_GRADES' not in st.session_state:
+if 'df_students' not in st.session_state or 'df_teachers' not in st.session_state or 'df_schedule' not in st.session_state or 'DF_GRADES' not in st.session_state or 'DOCS' not in st.session_state:
     df_students_initial, df_teachers_initial, df_schedule_initial, DF_GRADES_initial = setup_fmfkn_structure()
     st.session_state['df_students'] = df_students_initial
     st.session_state['df_teachers'] = df_teachers_initial
     st.session_state['df_schedule'] = df_schedule_initial
     st.session_state['DF_GRADES'] = DF_GRADES_initial
     st.session_state['USERS_INFO'] = USERS_INFO
+    # Імітація документації
+    st.session_state['DOCS'] = "Тут міститься текст наказу №123 про відрахування Іванова."
     
 # Отримання даних з session_state
 df_students = st.session_state['df_students']
 df_teachers = st.session_state['df_teachers']
 df_schedule = st.session_state['df_schedule']
 USERS_INFO = st.session_state['USERS_INFO']
-DF_GRADES = st.session_state['DF_GRADES'] # ВИПРАВЛЕНО NameError
+DF_GRADES = st.session_state['DF_GRADES'] 
 
 # --- 3. АВТЕНТИФІКАЦІЯ ТА РЕЄСТРАЦІЯ (п. 1) ---
 
@@ -418,34 +420,82 @@ def render_schedule_edit_form():
                 st.success("✅ Нову пару успішно додано до розкладу!")
                 st.toast("Розклад оновлено!")
 
-# --- 4.5. Інші Модулі (Імітація) ---
+# --- 4.5. Модуль "Керування даними (Адмін)" (п. 3, 5, 9) ---
+def render_admin_data_management():
+    st.header("Адмін-Керування даними (Студенти, Викладачі, Документи)")
+    
+    if role not in ['admin', 'dean']:
+        st.error("🚫 У вас немає прав адміністратора для редагування цієї секції.")
+        return
+        
+    st.markdown("---")
+    
+    tab1, tab2, tab3 = st.tabs(["Студенти (редагування)", "Викладачі (редагування)", "Документація"])
+
+    # --- 1. Редагування Студентів (п. 3) ---
+    with tab1:
+        st.subheader("Редагування Бази Студентів")
+        st.warning("Редагування відбувається безпосередньо в таблиці. Зміни зберігаються лише на час поточної сесії.")
+        
+        # Використовуємо st.data_editor для можливості редагування Pandas DataFrame
+        edited_students_df = st.data_editor(st.session_state['df_students'], use_container_width=True, key="admin_edit_students")
+        
+        if st.button("Зберегти зміни у студентах (тимчасово)"):
+            st.session_state['df_students'] = edited_students_df
+            st.success("База студентів оновлена!")
+
+    # --- 2. Редагування Викладачів (п. 5) ---
+    with tab2:
+        st.subheader("Редагування Списку Викладачів")
+        st.warning("Ви можете змінювати ПІБ, Кафедру та Посаду викладачів.")
+
+        # Редагування DataFrame Викладачів
+        edited_teachers_df = st.data_editor(st.session_state['df_teachers'], use_container_width=True, key="admin_edit_teachers")
+
+        if st.button("Зберегти зміни у викладачах (тимчасово)"):
+            st.session_state['df_teachers'] = edited_teachers_df
+            st.success("База викладачів оновлена!")
+            
+    # --- 3. Редагування Документації (п. 9) ---
+    with tab3:
+        st.subheader("Редагування Основної Документації")
+        st.info("Імітація: Редагування тексту важливого документа (наприклад, Наказу)")
+
+        edited_doc_text = st.text_area(
+            "Текст документа:", 
+            st.session_state['DOCS'], 
+            height=300, 
+            key="admin_edit_docs"
+        )
+
+        if st.button("Зберегти зміни у документації (тимчасово)"):
+            st.session_state['DOCS'] = edited_doc_text
+            st.success("Документація оновлена!")
+            
+# --- 4.6. Модуль "Документообіг" (для перегляду) ---
 def render_doc_module():
-    st.header("Модуль 'Документообіг' (п. 9)")
+    st.header("Модуль 'Документообіг' (Перегляд)")
     st.markdown("---")
     st.subheader("Накази та Довідки")
-    st.info("Імітація: Накази (зарахування, відрахування) та довідки (автоматичне формування PDF) керуються тут.")
+    
+    st.markdown("**Приклад поточного документа:**")
+    st.text(st.session_state['DOCS'])
     
     if role == 'student':
+        st.markdown("---")
+        st.subheader("Сервіс для Студента")
         st.button("Отримати довідку про навчання (PDF)")
         st.caption("Імітація генерації PDF.")
-
-def render_teachers_module():
-    st.header("Модуль 'Викладачі' (п. 5)")
-    st.markdown("---")
-    st.subheader("Персональний склад та Посади")
-    
-    # Використовуємо df_teachers з деталями (посада)
-    st.dataframe(st.session_state['df_teachers'], use_container_width=True)
-    st.caption(f"Всього {df_teachers.shape[0]} викладачів. ПАНАСЕНКО О.Б. - заступник декана/адміністратор.")
-
+        
 # --- 5. Навігація в Бічній Панелі ---
 
 PAGES = {
     "Головна панель": render_dashboard,
-    "Студенти та Групи (Адмін/Декан)": render_students_module,
+    "Керування даними (Адмін)": render_admin_data_management, # Новий модуль
+    "Студенти та Групи": render_students_module,
     "Викладачі та Кафедри": render_teachers_module,
     "Розклад занять (Редагування)": render_schedule_module,
-    "Документообіг (Імітація)": render_doc_module,
+    "Документообіг (Перегляд)": render_doc_module,
 }
 
 if 'page' not in st.session_state:
