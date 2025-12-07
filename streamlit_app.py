@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime, time
 
-# --- 1. Імітація Бази Даних (На рівні Pandas) ---
+# --- 1. Імітація Бази Даних (На рівні Pandas та Session State) ---
+# Використовуємо st.session_state для збереження даних розкладу, щоб вони могли бути змінені.
 @st.cache_data
 def load_mock_data():
     # Моделювання даних для факультету МФКН
@@ -37,11 +38,18 @@ def load_mock_data():
         'День': ['Понеділок', 'Вівторок', 'Середа', 'Четвер'],
         'Час': ['9:00', '11:00', '13:00', '15:00']
     }
-    df_schedule = pd.DataFrame(schedule)
+    df_schedule_initial = pd.DataFrame(schedule)
     
-    return df, df_teachers, df_schedule
+    return df, df_teachers, df_schedule_initial
 
-df_students, df_teachers, df_schedule = load_mock_data()
+df_students, df_teachers, df_schedule_initial = load_mock_data()
+
+# Ініціалізація або оновлення df_schedule у session_state
+if 'df_schedule' not in st.session_state:
+    st.session_state['df_schedule'] = df_schedule_initial.copy()
+
+df_schedule = st.session_state['df_schedule'] # Використовуємо змінну з сесії для читання
+    
 DF_GRADES = df_students.melt(
     id_vars=['ПІБ', 'Група', 'Курс'], 
     value_vars=['Оцінка_Алгоритми', 'Оцінка_Фізика'],
@@ -163,29 +171,92 @@ def render_schedule_module(): # (п. 7)
     st.header("Модуль 'Розклад'")
     st.subheader("Перегляд розкладу")
     
+    # Використовуємо df_schedule із session_state
+    current_schedule = st.session_state['df_schedule'] 
+    
     view_type = st.selectbox("Переглянути розклад для:", ['Групи', 'Викладача', 'Увесь розклад'])
     
     if view_type == 'Групи':
-        selected_group = st.selectbox("Оберіть групу:", df_schedule['Група'].unique())
-        st.dataframe(df_schedule[df_schedule['Група'] == selected_group], use_container_width=True)
+        selected_group = st.selectbox("Оберіть групу:", current_schedule['Група'].unique())
+        st.dataframe(current_schedule[current_schedule['Група'] == selected_group], use_container_width=True)
     elif view_type == 'Викладача':
-        selected_teacher = st.selectbox("Оберіть викладача:", df_schedule['Викладач'].unique())
-        st.dataframe(df_schedule[df_schedule['Викладач'] == selected_teacher], use_container_width=True)
+        selected_teacher = st.selectbox("Оберіть викладача:", current_schedule['Викладач'].unique())
+        st.dataframe(current_schedule[current_schedule['Викладач'] == selected_teacher], use_container_width=True)
     else:
-        st.dataframe(df_schedule, use_container_width=True)
+        st.dataframe(current_schedule, use_container_width=True)
 
     if role in ['admin', 'dean']:
-        st.subheader("🛠️ Редагування розкладу")
-        st.info("В режимі демонстрації цей функціонал імітується. У реальній системі потрібен Backend.")
-        # Тут може бути форма для додавання нових пар
+        if st.button("Перейти до редагування розкладу"):
+            st.session_state['page'] = "Редагування розкладу"
+            st.rerun()
+
+# --- Новий Модуль Редагування Розкладу (Імітація Backend) ---
+def render_schedule_edit_module():
+    st.header("🛠️ Редагування Розкладу")
+    
+    if role not in ['admin', 'dean']:
+        st.error("У вас немає прав для редагування розкладу.")
+        return
+        
+    st.subheader("Додати нову пару")
+    
+    with st.form("add_schedule_item"):
+        col_g, col_d = st.columns(2)
+        group = col_g.selectbox("Група", df_students['Група'].unique())
+        discipline = col_d.selectbox("Дисципліна", DF_GRADES['Дисципліна'].unique())
+        
+        col_t, col_a = st.columns(2)
+        teacher = col_t.selectbox("Викладач", df_teachers['ПІБ'].unique())
+        classroom = col_a.text_input("Аудиторія", value="404")
+        
+        col_day, col_time = st.columns(2)
+        day = col_day.selectbox("День тижня", ['Понеділок', 'Вівторок', 'Середа', 'Четвер', 'Пятниця'])
+        time_str = col_time.text_input("Час початку (наприклад, 10:40)", value="10:40")
+
+        submitted = st.form_submit_button("Додати пару")
+        
+        if submitted:
+            # Імітація перевірки конфлікту (Дуже спрощена!)
+            conflict_group = st.session_state['df_schedule'][(st.session_state['df_schedule']['Група'] == group) & (st.session_state['df_schedule']['День'] == day) & (st.session_state['df_schedule']['Час'] == time_str)]
+            conflict_teacher = st.session_state['df_schedule'][(st.session_state['df_schedule']['Викладач'] == teacher) & (st.session_state['df_schedule']['День'] == day) & (st.session_state['df_schedule']['Час'] == time_str)]
+            
+            if not conflict_group.empty or not conflict_teacher.empty:
+                st.warning("⚠️ Конфлікт розкладу! Група або викладач вже зайняті в цей час.")
+            else:
+                new_row = pd.DataFrame([{
+                    'Група': group, 
+                    'Дисципліна': discipline, 
+                    'Викладач': teacher, 
+                    'День': day, 
+                    'Час': time_str
+                }])
+                
+                # Оновлення global df_schedule через session_state
+                st.session_state['df_schedule'] = pd.concat([st.session_state['df_schedule'], new_row], ignore_index=True)
+                st.success("✅ Нову пару успішно додано до розкладу!")
+
+    st.subheader("Поточний розклад")
+    st.dataframe(st.session_state['df_schedule'], use_container_width=True)
 
 # --- 5. Навігація в Бічній Панелі ---
 PAGES = {
     "Головна панель": render_dashboard,
     "Студенти та Групи": render_students_module,
     "Розклад занять": render_schedule_module,
+    "Редагування розкладу": render_schedule_edit_module, # Новий модуль
     "Документообіг (Імітація)": lambda: st.header("Документообіг"),
 }
 
-selection = st.sidebar.radio("Навігація", list(PAGES.keys()))
-PAGES[selection]()
+# Використовуємо session_state для керування активною сторінкою
+if 'page' not in st.session_state:
+    st.session_state['page'] = "Головна панель"
+
+# Створюємо навігацію, яка оновлює st.session_state['page']
+selected_page = st.sidebar.radio("Навігація", list(PAGES.keys()), index=list(PAGES.keys()).index(st.session_state['page']))
+
+# Оновлюємо активну сторінку для відображення
+if selected_page != st.session_state['page']:
+    st.session_state['page'] = selected_page
+    
+# Рендеринг обраної сторінки
+PAGES[st.session_state['page']]()
